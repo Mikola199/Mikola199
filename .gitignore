@@ -1,0 +1,90 @@
+```
+# Dependencies
+node_modules/
+node_modules/
+.jest/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+target/
+lib/
+temp/
+tmp/
+
+# Runtime data
+.pnpm-store/
+.yarn-cache/
+.npm/
+.bower-cache/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage reports
+coverage/
+.nyc_output/
+.jest/
+
+# TypeScript
+*.tsbuildinfo
+.next/
+.nuxt/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Testing
+*.test.js
+*.spec.js
+
+# Compiled JavaScript
+*.min.js
+*.bundle.js
+
+# Security
+secrets/
+credentials/
+
+# Docker
+.dockerenv
+!docker-compose.yml
+
+# System
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Package manager
+jspm_packages/
+jam/
+bower_components/
+
+# Database
+*.db
+*.db-journal
+
+# Backup files
+*.bak
+*.swp
+*~
+```

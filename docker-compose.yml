@@ -1,0 +1,402 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - основная база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: equhub-postgres
+    environment:
+      POSTGRES_USER: equhub
+      POSTGRES_PASSWORD: equhub_password
+      POSTGRES_DB: equhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - equhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U equhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - кэширование и очереди
+  redis:
+    image: redis:7-alpine
+    container_name: equhub-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - equhub-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Elasticsearch - полнотекстовый поиск
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: equhub-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - equhub-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # MinIO - объектное хранилище
+  minio:
+    image: minio/minio:latest
+    container_name: equhub-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: equhub
+      MINIO_ROOT_PASSWORD: equhub_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - equhub-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # RabbitMQ - брокер сообщений
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: equhub-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: equhub
+      RABBITMQ_DEFAULT_PASS: equhub_password
+    ports:
+      - "5672:5672"   # AMQP порт
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - equhub-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # API Gateway (Nginx)
+  nginx:
+    image: nginx:alpine
+    container_name: equhub-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/docker/nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - auth-service
+      - users-service
+    networks:
+      - equhub-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    container_name: equhub-auth-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-jwt-secret-key-change-in-production
+      - JWT_EXPIRES_IN=15m
+      - REFRESH_TOKEN_EXPIRES_IN=7d
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/auth:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Users Service
+  users-service:
+    build:
+      context: .
+      dockerfile: services/users/Dockerfile
+    container_name: equhub-users-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://equhub:equhub_password@rabbitmq:5672
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=equhub
+      - MINIO_SECRET_KEY=equhub_password
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./services/users:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Feed Service
+  feed-service:
+    build:
+      context: .
+      dockerfile: services/feed/Dockerfile
+    container_name: equhub-feed-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://equhub:equhub_password@rabbitmq:5672
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/feed:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Chat Service
+  chat-service:
+    build:
+      context: .
+      dockerfile: services/chat/Dockerfile
+    container_name: equhub-chat-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://equhub:equhub_password@rabbitmq:5672
+    ports:
+      - "3004:3004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/chat:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Marketplace Service
+  marketplace-service:
+    build:
+      context: .
+      dockerfile: services/marketplace/Dockerfile
+    container_name: equhub-marketplace-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - MINIO_ENDPOINT=minio:9000
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./services/marketplace:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Jobs Service
+  jobs-service:
+    build:
+      context: .
+      dockerfile: services/jobs/Dockerfile
+    container_name: equhub-jobs-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "3006:3006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/jobs:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Wallet Service
+  wallet-service:
+    build:
+      context: .
+      dockerfile: services/wallet/Dockerfile
+    container_name: equhub-wallet-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3007:3007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/wallet:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Payments Service
+  payments-service:
+    build:
+      context: .
+      dockerfile: services/payments/Dockerfile
+    container_name: equhub-payments-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3008
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://equhub:equhub_password@rabbitmq:5672
+    ports:
+      - "3008:3008"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./services/payments:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Notifications Service
+  notifications-service:
+    build:
+      context: .
+      dockerfile: services/notifications/Dockerfile
+    container_name: equhub-notifications-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3009
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://equhub:equhub_password@rabbitmq:5672
+    ports:
+      - "3009:3009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./services/notifications:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # Search Service
+  search-service:
+    build:
+      context: .
+      dockerfile: services/search/Dockerfile
+    container_name: equhub-search-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3010
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3010:3010"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./services/search:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+  # AI Service
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai/Dockerfile
+    container_name: equhub-ai-service
+    environment:
+      - NODE_ENV=development
+      - PORT=3011
+      - DATABASE_URL=postgresql://equhub:equhub_password@postgres:5432/equhub
+      - REDIS_URL=redis://redis:6379
+      - AI_API_KEY=${AI_API_KEY:-}
+    ports:
+      - "3011:3011"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/ai:/app
+      - /app/node_modules
+    networks:
+      - equhub-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+  minio_data:
+  rabbitmq_data:
+
+networks:
+  equhub-network:
+    driver: bridge

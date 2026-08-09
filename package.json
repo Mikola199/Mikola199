@@ -1,0 +1,67 @@
+{
+  "name": "equhub",
+  "version": "1.0.0",
+  "description": "EQUHUB — единая цифровая платформа: социальная сеть, мессенджер, маркетплейс, вакансии, AI-помощник",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:*\"",
+    "dev:auth": "npm run dev --workspace=@equhub/auth-service",
+    "dev:users": "npm run dev --workspace=@equhub/users-service",
+    "dev:feed": "npm run dev --workspace=@equhub/feed-service",
+    "dev:chat": "npm run dev --workspace=@equhub/chat-service",
+    "dev:marketplace": "npm run dev --workspace=@equhub/marketplace-service",
+    "dev:jobs": "npm run dev --workspace=@equhub/jobs-service",
+    "dev:wallet": "npm run dev --workspace=@equhub/wallet-service",
+    "dev:payments": "npm run dev --workspace=@equhub/payments-service",
+    "dev:notifications": "npm run dev --workspace=@equhub/notifications-service",
+    "dev:search": "npm run dev --workspace=@equhub/search-service",
+    "dev:ai": "npm run dev --workspace=@equhub/ai-service",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "db:migrate": "npm run db:migrate --workspaces",
+    "db:seed": "npm run db:seed --workspaces"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mikola199/equhub.git"
+  },
+  "keywords": [
+    "social-network",
+    "messenger",
+    "marketplace",
+    "jobs",
+    "ai-assistant",
+    "video",
+    "wallet",
+    "nestjs",
+    "flutter",
+    "react"
+  ],
+  "author": "Mikola199",
+  "license": "MIT"
+}
