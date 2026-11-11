@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EquHub — Демо приложения</title>
+<style>
+  body{font-family:system-ui,Arial;margin:0;background:#0f172a;color:#e2e8f0}
+  header{padding:24px;background:#1e293b;text-align:center}
+  h1{margin:0} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:24px;max-width:900px;margin:0 auto}
+  .card{background:#1e293b;border-radius:12px;padding:20px}
+  .card h2{font-size:18px;margin:0 0 8px} .port{color:#38bdf8;font-weight:bold}
+  footer{text-align:center;color:#94a3b8;padding:16px}
+</style>
+</head>
+<body>
+<header><h1>🐴 EquHub (демо)</h1><p>Микросервисная платформа — страница запущена локально</p></header>
+<div class="grid">
+  <div class="card"><h2>Auth Service</h2><span class="port">:3001</span><p>Регистрация и вход</p></div>
+  <div class="card"><h2>Users Service</h2><span class="port">:3002</span><p>Профили пользователей</p></div>
+  <div class="card"><h2>Feed Service</h2><span class="port">:3003</span><p>Лента новостей</p></div>
+  <div class="card"><h2>Chat Service</h2><span class="port">:3004</span><p>Мессенджер</p></div>
+  <div class="card"><h2>Marketplace</h2><span class="port">:3005</span><p>Товары и услуги</p></div>
+  <div class="card"><h2>API Gateway</h2><span class="port">/api</span><p>Nginx — единая точка входа</p></div>
+</div>
+<footer>Demo server · Node.js http-server · 2026</footer>
+</body>
+</html>
